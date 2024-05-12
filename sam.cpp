@@ -39,12 +39,14 @@ struct SamModel {
       auto& provider = param.providers[i];
       auto& option = sessionOptions[i];
 
+      option.SetLogSeverityLevel(ORT_LOGGING_LEVEL_ERROR);
       option.SetIntraOpNumThreads(param.threadsNumber);
       option.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
       if (provider.deviceType == 1) {
         OrtCUDAProviderOptions options;
         options.device_id = provider.gpuDeviceId;
+        options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
         if (provider.gpuMemoryLimit > 0) {
           options.gpu_mem_limit = provider.gpuMemoryLimit;
         }

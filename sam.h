@@ -4,11 +4,12 @@
 #include <opencv2/core.hpp>
 #include <string>
 #include <list>
+#include "samcpplib_export.h"
 
 struct SamModel;
 
 #if _MSC_VER
-class __declspec(dllexport) Sam {
+class SAMCPPLIB_EXPORT Sam {
 #else
 class Sam {
 #endif

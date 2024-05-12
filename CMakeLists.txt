@@ -1,26 +1,69 @@
-cmake_minimum_required(VERSION 3.21)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.21)
+PROJECT(SamCPP)
+
+SET(3rdlib_DIR  "D:/Libraries")
 set(CMAKE_CXX_STANDARD 17)
+SET(CMAKE_DEBUG_POSTFIX "d")
+SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON) 
 
-project(SamCPP)
+SET(3rdlib_DIR  "D:/Libraries")
+SET(OpenCV_DIR "${3rdlib_DIR}/OpenCV")
+FIND_PACKAGE(OpenCV CONFIG REQUIRED)
 
-find_package(OpenCV CONFIG REQUIRED)
-find_package(gflags CONFIG REQUIRED)
+# find_package(gflags CONFIG REQUIRED)
+#gflags
+ADD_LIBRARY(gflags STATIC IMPORTED GLOBAL)
+SET_TARGET_PROPERTIES(gflags PROPERTIES IMPORTED_LOCATION_DEBUG "${3rdlib_DIR}/gflags/lib/gflags_static_debug.lib" 
+										IMPORTED_LOCATION_RELEASE "${3rdlib_DIR}/gflags/lib/gflags_static.lib" 
+										INTERFACE_COMPILE_DEFINITIONS "GFLAGS_IS_A_DLL=0"
+										INTERFACE_INCLUDE_DIRECTORIES "${3rdlib_DIR}/gflags/include"
+										INTERFACE_LINK_LIBRARIES "shlwapi.lib")
 
-add_library(sam_cpp_lib SHARED sam.h sam.cpp)
-if (WIN32)
-  set(onnxruntime_lib ${VCPKG_INSTALLED_DIR}/x64-windows/lib/onnxruntime.lib)
-else()
-  set(onnxruntime_lib ${ONNXRUNTIME_ROOT_DIR}/lib/libonnxruntime.so)
-  target_include_directories(sam_cpp_lib PRIVATE ${ONNXRUNTIME_ROOT_DIR}/include)
-endif()
-target_link_libraries(sam_cpp_lib PRIVATE
-  ${onnxruntime_lib}
-  ${OpenCV_LIBS}
-)
+#glog
+ADD_LIBRARY(glog STATIC IMPORTED GLOBAL)
+SET_TARGET_PROPERTIES(glog PROPERTIES IMPORTED_LOCATION_DEBUG "${3rdlib_DIR}/glog/lib/glogd.lib"
+									  IMPORTED_LOCATION_RELEASE "${3rdlib_DIR}/glog/lib/glog.lib"
+									  INTERFACE_COMPILE_DEFINITIONS "GFLAGS_DLL_DECLARE_FLAG=;GFLAGS_DLL_DEFINE_FLAG=;GLOG_NO_ABBREVIATED_SEVERITIES;GOOGLE_GLOG_DLL_DECL="
+									  INTERFACE_INCLUDE_DIRECTORIES "${3rdlib_DIR}/glog/include")
+#ort									  
+ADD_LIBRARY(libort SHARED IMPORTED GLOBAL)
+SET_TARGET_PROPERTIES(libort PROPERTIES IMPORTED_IMPLIB "${3rdlib_DIR}/onnxruntime/lib/onnxruntime.lib" 
+									    IMPORTED_LOCATION "${3rdlib_DIR}/onnxruntime/lib/onnxruntime.dll"
+										INTERFACE_COMPILE_DEFINITIONS  "ORT_DLL_IMPORT" #;USE_ORT;USE_CUDA
+										INTERFACE_INCLUDE_DIRECTORIES "${3rdlib_DIR}/onnxruntime/include")									  
 
-add_executable(sam_cpp_test test.cpp)
-target_link_libraries(sam_cpp_test PRIVATE
-  sam_cpp_lib
-  ${OpenCV_LIBS}
-  gflags
-)
+IF(MSVC)
+	ADD_DEFINITIONS(-D_CRT_SECURE_NO_WARNINGS)
+ENDIF()
+
+SET(LibName ${PROJECT_NAME}Lib)
+ADD_LIBRARY(${LibName} SHARED sam.h sam.cpp)
+TARGET_INCLUDE_DIRECTORIES(${LibName} PRIVATE ${OpenCV_INCLUDE_DIRS})
+TARGET_LINK_LIBRARIES(${LibName} PRIVATE ${OpenCV_LIBS} libort gflags glog)
+SET_TARGET_PROPERTIES(${LibName} PROPERTIES
+			  RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
+			  RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
+			  DEBUG_POSTFIX "d"
+			  )
+if (MSVC)
+    INCLUDE(GenerateExportHeader)
+    GENERATE_EXPORT_HEADER(${PROJECT_NAME}Lib
+        BASE_NAME SAMCPPLib
+        EXPORT_FILE_NAME ${CMAKE_SOURCE_DIR}/samcpplib_export.h
+	    )	
+	FILE(GLOB ORT_DLLS "${3rdlib_DIR}/onnxruntime/lib/*.dll")
+	ADD_CUSTOM_COMMAND(TARGET ${LibName}
+						POST_BUILD
+						COMMAND ${CMAKE_COMMAND} -E copy_if_different
+						${ORT_DLLS}
+						$<TARGET_FILE_DIR:${LibName}>)
+endif (MSVC)
+
+SET(LibTestName ${PROJECT_NAME}Test)
+ADD_EXECUTABLE(${LibTestName} test.cpp)
+TARGET_LINK_LIBRARIES(${LibTestName} PRIVATE ${LibName} ${OpenCV_LIBS} gflags glog)
+SET_TARGET_PROPERTIES(${LibTestName} PROPERTIES
+			  RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin
+			  RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin
+			  DEBUG_POSTFIX "d"
+			  )
